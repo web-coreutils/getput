@@ -1,32 +1,15 @@
 use std::convert::Infallible;
-use std::net::SocketAddr;
 use hyper::{Body, Request, Response, Server, Method};
 use hyper::service::{make_service_fn, service_fn};
 
 use anyhow::Result;
 
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
 
 use clap::Parser;
 
-async fn hello_world(req: Request<Body>) -> Result<Response<Body>> {
-
-    println!("{:?}", req);
-
-    let key = req.uri().path(); // TODO maybe remove "/"
-
-    let res = match req.method() {
-        &Method::GET => {
-            String::from("GET worked")
-        },
-        &Method::PUT => {
-            let val = hyper::body::to_bytes(req.into_body()).await?;
-            println!("based? {:?}", val);
-            String::from("PUT worked")
-        }
-        _ => String::from("bad"),
-    };
-    Ok(Response::new(res.into()))
-}
 
 const NAME: &str = "getput";
 const AUTHOR: &str = "github.com/{lquenti,meipp}";
@@ -50,29 +33,45 @@ struct Cli {
     port: u64,
 }
 
-/*
-fn main() {
-    let cli = Cli::parse();
-    println!("{:?}", cli);
-}
-*/
-
 #[tokio::main]
-async fn main() {
-    // We'll bind to 127.0.0.1:3000
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "0.0.0.0:3000".parse()?;
+    let hm: HashMap<String, String> = HashMap::new();
+    let storage: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(hm));
 
-    // A `Service` is needed for every connection, so this
-    // creates one from our `hello_world` function.
-    let make_svc = make_service_fn(|_conn| async {
-        // service_fn converts our function into a `Service`
-        Ok::<_, Infallible>(service_fn(hello_world))
+    let make_service = make_service_fn(move |_conn| {
+        let storage = storage.clone();
+        async move {
+            Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
+                let storage = storage.clone();
+                async move {
+                    Ok::<_, Infallible>(handle(storage.clone(), req))
+                }
+            }))
+        }
     });
 
-    let server = Server::bind(&addr).serve(make_svc);
+    Server::bind(&addr).serve(make_service).await?;
+    Ok(())
+}
 
-    // Run this server for... forever!
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+fn split_on(s: String, c: char) -> Option<(String, String)> {
+    let mut iter = s.splitn(2, c);
+    Some((iter.next()?.into(), iter.next()?.into()))
+}
+
+fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> Response<Body> {
+    let key: String = req.uri().path().into();
+    println!("{:?} {:?}", req.method(), req.uri().path());
+
+    match req.method() {
+        &Method::GET => Response::new(Body::from(format!("GET {:?}", storage.lock().unwrap().get(&key)))),
+        &Method::PUT => {
+            let (k, v) = split_on(key, '=').expect("PUT URI must have form key=value");
+            storage.lock().unwrap().insert(k, v);
+
+            Response::new(Body::from(format!("PUT {:?}", storage.lock().unwrap())))
+        },
+        _ => Response::new(Body::from(format!("bad")))
     }
 }
