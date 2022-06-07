@@ -26,10 +26,10 @@ struct Cli {
     database_file: String,
     /// The maximum amount of characters allowed for a key
     #[clap(short = 'k', long, default_value_t = 1024)]
-    max_key_length: u64,
+    max_key_length: usize,
     /// The maximum amount of characters allowed for a value
     #[clap(short = 'v', long, default_value_t = 1024*1024*1024)]
-    max_value_length: u64,
+    max_value_length: usize,
     /// On which port to listen
     #[clap(short, long, default_value_t = 6379)]
     port: u64,
@@ -82,6 +82,9 @@ fn handle(
     req: Request<Body>,
 ) -> Response<Body> {
     let key: String = req.uri().path().into();
+    if key.len() > cli.max_key_length {
+        return response(414, "URI Too Long");
+    }
     println!("{:?} {:?}", req.method(), req.uri().path());
 
     match req.method() {
@@ -91,6 +94,10 @@ fn handle(
         },
         &Method::PUT => {
             let (k, v) = split_on(key, '=').expect("PUT URI must have form key=value");
+            if v.len() > cli.max_value_length {
+                return response(413, "Payload Too Large");
+            }
+
             let inserted = storage.lock().unwrap().insert(k, v);
 
             match inserted {
