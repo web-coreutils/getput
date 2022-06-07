@@ -18,7 +18,7 @@ const AUTHOR: &str = "github.com/{lquenti,meipp}";
 const VERSION: &str = "0.1";
 const ABOUT: &str = "putget";
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about = ABOUT, long_about = None)]
 struct Cli {
     /// Where to store the database
@@ -37,26 +37,29 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let Cli { database_file, .. } = Cli::parse();
+    let cli = Cli::parse();
+    let cli2 = cli.clone();
 
     let addr = "0.0.0.0:3000".parse()?;
-    let hm: HashMap<String, String> = hashmap_from_file(&database_file)?;
+    let hm: HashMap<String, String> = hashmap_from_file(&cli.database_file)?;
     let storage: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(hm));
     let storage2 = storage.clone();
 
     let make_service = make_service_fn(move |_conn| {
+        let cli = cli.clone();
         let storage = storage.clone();
         async move {
             Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
+                let cli = cli.clone();
                 let storage = storage.clone();
-                async move { Ok::<_, Infallible>(handle(storage.clone(), req)) }
+                async move { Ok::<_, Infallible>(handle(&cli, storage.clone(), req)) }
             }))
         }
     });
 
     Server::bind(&addr)
         .serve(make_service)
-        .with_graceful_shutdown(shutdown(storage2, &database_file))
+        .with_graceful_shutdown(shutdown(storage2, &cli2.database_file))
         .await?;
     Ok(())
 }
@@ -73,7 +76,11 @@ fn response(status: u16, body: &str) -> Response<Body> {
         .unwrap()
 }
 
-fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> Response<Body> {
+fn handle(
+    cli: &Cli,
+    storage: Arc<Mutex<HashMap<String, String>>>,
+    req: Request<Body>,
+) -> Response<Body> {
     let key: String = req.uri().path().into();
     println!("{:?} {:?}", req.method(), req.uri().path());
 
