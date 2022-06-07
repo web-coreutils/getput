@@ -10,6 +10,9 @@ use std::sync::{Arc, Mutex};
 
 use clap::Parser;
 
+use std::fs::File;
+use std::io::{BufReader, Write};
+use std::path::Path;
 
 const NAME: &str = "getput";
 const AUTHOR: &str = "github.com/{lquenti,meipp}";
@@ -36,7 +39,7 @@ struct Cli {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "0.0.0.0:3000".parse()?;
-    let hm: HashMap<String, String> = HashMap::new();
+    let hm: HashMap<String, String> = hashmap_from_file("./db.json")?;
     let storage: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(hm));
     let storage2 = storage.clone();
 
@@ -84,4 +87,20 @@ async fn shutdown(storage: Arc<Mutex<HashMap<String, String>>>) {
     tokio::signal::ctrl_c().await.expect("Could not set interrupt handler");
     println!("Shutting down server");
     println!("storage: {:?}", storage.lock().unwrap());
+
+    let s = serde_json::to_string(&*storage.lock().unwrap()).unwrap();
+
+    let mut output = File::create("./db.json").unwrap();
+    write!(output, "{}", s).unwrap();
+}
+
+pub fn hashmap_from_file(file_path: &str) -> Result<HashMap<String, String>> {
+    if !Path::new(file_path).exists() {
+        return Ok(HashMap::new());
+    }
+
+    let file = File::open(file_path)?;
+    let reader = BufReader::new(file);
+    let res = serde_json::from_reader(reader)?;
+    Ok(res)
 }
