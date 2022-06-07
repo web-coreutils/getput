@@ -4,6 +4,7 @@
 
 ### API Specification 1.0
 All request headers are ignored  
+All other request methods return `405 Method Not Allowed`  
 
 #### `GET /<KEY>`
 If success: `200 OK <VALUE>`  
