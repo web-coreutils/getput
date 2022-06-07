@@ -1,12 +1,11 @@
-use std::convert::Infallible;
-use hyper::{Body, Request, Response, Server, Method};
 use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Method, Request, Response, Server};
+use std::convert::Infallible;
 
 use anyhow::Result;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-
 
 use clap::Parser;
 
@@ -38,7 +37,7 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let Cli{database_file, ..} = Cli::parse();
+    let Cli { database_file, .. } = Cli::parse();
 
     let addr = "0.0.0.0:3000".parse()?;
     let hm: HashMap<String, String> = hashmap_from_file(&database_file)?;
@@ -50,9 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         async move {
             Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
                 let storage = storage.clone();
-                async move {
-                    Ok::<_, Infallible>(handle(storage.clone(), req))
-                }
+                async move { Ok::<_, Infallible>(handle(storage.clone(), req)) }
             }))
         }
     });
@@ -74,19 +71,24 @@ fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> R
     println!("{:?} {:?}", req.method(), req.uri().path());
 
     match req.method() {
-        &Method::GET => Response::new(Body::from(format!("GET {:?}", storage.lock().unwrap().get(&key)))),
+        &Method::GET => Response::new(Body::from(format!(
+            "GET {:?}",
+            storage.lock().unwrap().get(&key)
+        ))),
         &Method::PUT => {
             let (k, v) = split_on(key, '=').expect("PUT URI must have form key=value");
             storage.lock().unwrap().insert(k, v);
 
             Response::new(Body::from(format!("PUT {:?}", storage.lock().unwrap())))
-        },
-        _ => Response::new(Body::from(format!("bad")))
+        }
+        _ => Response::new(Body::from(format!("bad"))),
     }
 }
 
 async fn shutdown(storage: Arc<Mutex<HashMap<String, String>>>, database_file: &str) {
-    tokio::signal::ctrl_c().await.expect("Could not set interrupt handler");
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Could not set interrupt handler");
     println!("Shutting down server");
     println!("storage: {:?}", storage.lock().unwrap());
 
