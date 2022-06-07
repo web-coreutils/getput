@@ -66,15 +66,22 @@ fn split_on(s: String, c: char) -> Option<(String, String)> {
     Some((iter.next()?.into(), iter.next()?.into()))
 }
 
+fn response(status: u16, body: &str) -> Response<Body> {
+    Response::builder()
+        .status(status)
+        .body(Body::from(String::from(body)))
+        .unwrap()
+}
+
 fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> Response<Body> {
     let key: String = req.uri().path().into();
     println!("{:?} {:?}", req.method(), req.uri().path());
 
     match req.method() {
-        &Method::GET => Response::new(Body::from(format!(
-            "GET {:?}",
-            storage.lock().unwrap().get(&key)
-        ))),
+        &Method::GET => match storage.lock().unwrap().get(&key) {
+            None => response(404, ""),
+            Some(value) => response(200, value),
+        },
         &Method::PUT => {
             let (k, v) = split_on(key, '=').expect("PUT URI must have form key=value");
             let inserted = storage.lock().unwrap().insert(k, v);
