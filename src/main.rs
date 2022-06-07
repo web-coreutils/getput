@@ -23,7 +23,7 @@ const ABOUT: &str = "putget";
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about = ABOUT, long_about = None)]
 struct Cli {
     /// Where to store the database
-    #[clap(short = 'f', long, default_value_t = format!("./{}.db", NAME))]
+    #[clap(short = 'f', long, default_value_t = String::from("./db.json"))]
     database_file: String,
     /// The maximum amount of characters allowed for a key
     #[clap(short = 'k', long, default_value_t = 1024)]
@@ -38,8 +38,10 @@ struct Cli {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let Cli{database_file, ..} = Cli::parse();
+
     let addr = "0.0.0.0:3000".parse()?;
-    let hm: HashMap<String, String> = hashmap_from_file("./db.json")?;
+    let hm: HashMap<String, String> = hashmap_from_file(&database_file)?;
     let storage: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(hm));
     let storage2 = storage.clone();
 
@@ -57,7 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Server::bind(&addr)
         .serve(make_service)
-        .with_graceful_shutdown(shutdown(storage2))
+        .with_graceful_shutdown(shutdown(storage2, &database_file))
         .await?;
     Ok(())
 }
@@ -83,14 +85,14 @@ fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> R
     }
 }
 
-async fn shutdown(storage: Arc<Mutex<HashMap<String, String>>>) {
+async fn shutdown(storage: Arc<Mutex<HashMap<String, String>>>, database_file: &str) {
     tokio::signal::ctrl_c().await.expect("Could not set interrupt handler");
     println!("Shutting down server");
     println!("storage: {:?}", storage.lock().unwrap());
 
     let s = serde_json::to_string(&*storage.lock().unwrap()).unwrap();
 
-    let mut output = File::create("./db.json").unwrap();
+    let mut output = File::create(database_file).unwrap();
     write!(output, "{}", s).unwrap();
 }
 
