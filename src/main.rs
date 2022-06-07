@@ -38,6 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "0.0.0.0:3000".parse()?;
     let hm: HashMap<String, String> = HashMap::new();
     let storage: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(hm));
+    let storage2 = storage.clone();
 
     let make_service = make_service_fn(move |_conn| {
         let storage = storage.clone();
@@ -51,7 +52,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    Server::bind(&addr).serve(make_service).await?;
+    Server::bind(&addr)
+        .serve(make_service)
+        .with_graceful_shutdown(shutdown(storage2))
+        .await?;
     Ok(())
 }
 
@@ -74,4 +78,10 @@ fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> R
         },
         _ => Response::new(Body::from(format!("bad")))
     }
+}
+
+async fn shutdown(storage: Arc<Mutex<HashMap<String, String>>>) {
+    tokio::signal::ctrl_c().await.expect("Could not set interrupt handler");
+    println!("Shutting down server");
+    println!("storage: {:?}", storage.lock().unwrap());
 }
