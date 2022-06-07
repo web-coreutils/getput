@@ -89,7 +89,7 @@ fn handle(
 
     match req.method() {
         &Method::GET => match storage.lock().unwrap().get(&key) {
-            None => response(404, ""),
+            None => response(404, "Not Found"),
             Some(value) => response(200, value),
         },
         &Method::PUT => {
@@ -101,11 +101,11 @@ fn handle(
             let inserted = storage.lock().unwrap().insert(k, v);
 
             match inserted {
-                None => response(201, ""),
-                Some(_) => response(200, ""),
+                None => response(201, "Created"),
+                Some(_) => response(200, "OK"),
             }
         }
-        _ => response(405, ""),
+        _ => response(405, "Method Not Allowed"),
     }
 }
 
