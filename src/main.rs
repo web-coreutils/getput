@@ -86,15 +86,12 @@ fn handle(storage: Arc<Mutex<HashMap<String, String>>>, req: Request<Body>) -> R
             let (k, v) = split_on(key, '=').expect("PUT URI must have form key=value");
             let inserted = storage.lock().unwrap().insert(k, v);
 
-            Response::builder()
-                .status(match inserted {
-                    None => 201,
-                    Some(_) => 200,
-                })
-                .body(Body::from(""))
-                .unwrap()
+            match inserted {
+                None => response(201, ""),
+                Some(_) => response(200, ""),
+            }
         }
-        _ => Response::new(Body::from(format!("bad"))),
+        _ => response(405, ""),
     }
 }
 
