@@ -11,6 +11,7 @@ use clap::Parser;
 
 use std::fs::File;
 use std::io::{BufReader, Write};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::path::Path;
 
 const NAME: &str = "getput";
@@ -32,7 +33,7 @@ struct Cli {
     max_value_length: usize,
     /// On which port to listen
     #[clap(short, long, default_value_t = 6379)]
-    port: u64,
+    port: u16,
 }
 
 #[tokio::main]
@@ -40,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
     let cli2 = cli.clone();
 
-    let addr = "0.0.0.0:3000".parse()?;
+    let addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), cli.port));
     let hm: HashMap<String, String> = hashmap_from_file(&cli.database_file)?;
     let storage: Arc<Mutex<HashMap<String, String>>> = Arc::new(Mutex::new(hm));
     let storage2 = storage.clone();
