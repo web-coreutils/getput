@@ -114,7 +114,7 @@ async fn shutdown(storage: Arc<Mutex<HashMap<String, String>>>, database_file: &
     tokio::signal::ctrl_c()
         .await
         .expect("Could not set interrupt handler");
-    println!("Shutting down server");
+    println!("\nShutting down server");
     println!("storage: {:?}", storage.lock().unwrap());
 
     let s = serde_json::to_string(&*storage.lock().unwrap()).unwrap();
